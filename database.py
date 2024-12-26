@@ -90,3 +90,42 @@ class DatabaseManager:
 
         self.cursor.execute(query, params)
         return self.cursor.fetchall()
+
+    def get_monthly_data(self):
+        query_income = """
+           SELECT strftime('%Y-%m', date) AS month, SUM(amount) AS total_income
+           FROM income
+           GROUP BY strftime('%Y-%m', date)
+           """
+        self.cursor.execute(query_income)
+        income_data = self.cursor.fetchall()
+
+        query_expense = """
+           SELECT strftime('%Y-%m', date) AS month, SUM(amount) AS total_expense
+           FROM expense
+           GROUP BY strftime('%Y-%m', date)
+           """
+        self.cursor.execute(query_expense)
+        expense_data = self.cursor.fetchall()
+
+        # Ay bazında gelir ve giderleri birleştir
+        result = {}
+        for month, total in income_data:
+            result[month] = [total, 0]  # [income, expense]
+        for month, total in expense_data:
+            if month in result:
+                result[month][1] = total
+            else:
+                result[month] = [0, total]
+
+        return [(month, values[0], values[1]) for month, values in sorted(result.items())]
+
+    def get_category_data(self):
+        query = """
+            SELECT category, SUM(amount) 
+            FROM expense
+            WHERE category IS NOT NULL
+            GROUP BY category
+            """
+        self.cursor.execute(query)
+        return self.cursor.fetchall()

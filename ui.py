@@ -1,9 +1,18 @@
 from database import DatabaseManager
 import tkinter as tk
 from tkinter import ttk, messagebox
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+from tkcalendar import DateEntry
+
 
 class FinanceApp:
     def __init__(self, root):
+        self.database = None
+        self.figure = Figure(figsize=(5, 4), dpi=100)
+        self.chart_canvas = FigureCanvasTkAgg(self.figure)
+        self.create_home_page = None
         self.data_tree = None
         self.filter_category_combobox = None
         self.filter_date_entry = None
@@ -12,7 +21,7 @@ class FinanceApp:
         self.amount_entry = None
         self.root = root
         self.root.title("Kişisel Finans Takip Uygulaması")
-        self.root.geometry("400x300")
+        self.root.geometry("600x400")
         self.root.resizable(True, True)
 
         self.db = DatabaseManager()  # DatabaseManager ile bağlantı oluştur
@@ -41,9 +50,13 @@ class FinanceApp:
         report_button = tk.Button(self.main_frame, text="Raporlar", width=20, command=self.report_page)
         report_button.grid(row=3, column=0, columnspan=2, pady=5)
 
+        # Ana sayfada analiz butonu ekleyelim
+        analysis_button = tk.Button(self.main_frame, text="Gelir ve Gider Analizi", width=20, command=self.create_analysis_page)
+        analysis_button.grid(row=4, column=0, columnspan=2, pady=5)
+
         # Verileri Görüntüle düğmesi
         view_data_button = tk.Button(self.main_frame, text="Verileri Görüntüle", width=20, command=self.view_data_page)
-        view_data_button.grid(row=4, column=0, columnspan=2, pady=5)
+        view_data_button.grid(row=5, column=0, columnspan=2, pady=5)
 
     def income_page(self):
         self.clear_window()
@@ -64,9 +77,14 @@ class FinanceApp:
         self.category_combobox.grid(row=2, column=1, padx=5, pady=5)
 
         # Tarih Girişi
-        date_label = tk.Label(self.main_frame, text="Tarih (YYYY-MM-DD):")
+        date_label = tk.Label(self.main_frame, text="Tarih:")
         date_label.grid(row=3, column=0, sticky="e", padx=5, pady=5)
-        self.date_entry = tk.Entry(self.main_frame)
+        self.date_entry = DateEntry(
+            self.main_frame,
+            date_pattern="yyyy-mm-dd",
+            state="normal",  # "readonly" yerine "normal" ile çalışmayı kolaylaştırabiliriz
+            showweeknumbers=False  # Haftalık numaraları gizleyebiliriz
+        )
         self.date_entry.grid(row=3, column=1, padx=5, pady=5)
 
         # Kaydet ve Geri Düğmeleri
@@ -80,7 +98,7 @@ class FinanceApp:
         try:
             amount = float(self.amount_entry.get())
             category = self.category_combobox.get()
-            date = self.date_entry.get()
+            date = self.date_entry.get_date().strftime("%Y-%m-%d")  # Tarihi string olarak al
 
             if not category or not date:
                 raise ValueError("Lütfen tüm alanları doldurun!")
@@ -107,13 +125,19 @@ class FinanceApp:
         # Kategori Seçimi
         category_label = tk.Label(self.main_frame, text="Kategori:")
         category_label.grid(row=2, column=0, sticky="e", padx=5, pady=5)
-        self.category_combobox = ttk.Combobox(self.main_frame, values=["Fatura", "Gıda", "Eğlence", "Diğer"])
+        self.category_combobox = ttk.Combobox(self.main_frame, values=["Ulaşım", "Gıda", "Eğlence", "Diğer"])
         self.category_combobox.grid(row=2, column=1, padx=5, pady=5)
 
         # Tarih Girişi
         date_label = tk.Label(self.main_frame, text="Tarih (YYYY-MM-DD):")
         date_label.grid(row=3, column=0, sticky="e", padx=5, pady=5)
-        self.date_entry = tk.Entry(self.main_frame)
+        self.date_entry = DateEntry(
+            self.main_frame,
+            date_pattern="yyyy-mm-dd",
+            state="normal",  # "readonly" yerine "normal" ile çalışmayı kolaylaştırabiliriz
+            showweeknumbers=False  # Haftalık numaraları gizleyebiliriz
+        )
+
         self.date_entry.grid(row=3, column=1, padx=5, pady=5)
 
         # Kaydet ve Geri Düğmeleri
@@ -127,7 +151,7 @@ class FinanceApp:
         try:
             amount = float(self.amount_entry.get())
             category = self.category_combobox.get()
-            date = self.date_entry.get()
+            date = self.date_entry.get_date().strftime("%Y-%m-%d")  # Tarihi String olarak al
 
             if not category or not date:
                 raise ValueError("Lütfen tüm alanları doldurun!")
@@ -244,6 +268,68 @@ class FinanceApp:
         # Gider verilerini yükle
         for expense in self.db.get_all_expenses():
             self.data_tree.insert("", "end", values=("Gider", expense[1], expense[2], expense[3]))
+
+    def create_analysis_page(self):
+        self.clear_window()
+
+        # Başlık
+        title = tk.Label(self.main_frame, text="Gelir ve Gider Analizi", font=("Arial", 16))
+        title.grid(row=0, column=0, columnspan=2, pady=20, padx=20)
+
+        # Grafik alanı
+        self.figure = plt.Figure(figsize=(6, 4), dpi=100)
+        self.chart_canvas = FigureCanvasTkAgg(self.figure, self.main_frame)
+        self.chart_canvas.get_tk_widget().grid(row=1, column=0)
+
+        # Analiz butonları
+        monthly_button = tk.Button(self.main_frame, text="Aylık Gelir/Gider Grafiği", command=self.plot_monthly_data)
+        monthly_button.grid(row=2, column=0,columnspan=2, pady=10, padx=5)
+        category_button = tk.Button(self.main_frame, text="Kategorilere Göre Harcama", command=self.plot_category_data)
+        category_button.grid(row=3, column=0, columnspan=2, pady=10, padx=5)
+        back_button = tk.Button(self.main_frame, text="Geri", command=self.create_main_page)
+        back_button.grid(row=4, column=0,columnspan=2, pady=10, padx=5)
+
+    def plot_monthly_data(self):
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+
+        try:
+            data = self.db.get_monthly_data()  # Ay bazında gelir/gider verilerini çek
+            if not data:
+                ax.text(0.5, 0.5, "Veri bulunamadı.", ha="center", va="center", transform=ax.transAxes)
+                self.chart_canvas.draw()
+                return
+
+            months, incomes, expenses = zip(*data)
+
+            ax.bar(months, incomes, label="Gelir", color="green")
+            ax.bar(months, expenses, label="Gider", color="red", bottom=incomes)
+            ax.set_title("Aylık Gelir ve Gider")
+            ax.legend()
+        except Exception as e:
+            ax.text(0.5, 0.5, f"Hata: {str(e)}", ha="center", va="center", transform=ax.transAxes)
+
+        self.chart_canvas.draw()
+
+    def plot_category_data(self):
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+
+        try:
+            data = self.db.get_category_data()  # Kategorilere göre gider verilerini çek
+            if not data:
+                ax.text(0.5, 0.5, "Veri bulunamadı.", ha="center", va="center", transform=ax.transAxes)
+                self.chart_canvas.draw()
+                return
+
+            categories, amounts = zip(*data)
+
+            ax.pie(amounts, labels=categories, autopct="%1.1f%%", startangle=140)
+            ax.set_title("Kategorilere Göre Harcama")
+        except Exception as e:
+            ax.text(0.5, 0.5, f"Hata: {str(e)}", ha="center", va="center", transform=ax.transAxes)
+
+        self.chart_canvas.draw()
 
     def clear_window(self):
         for widget in self.main_frame.winfo_children():
