@@ -129,3 +129,36 @@ class DatabaseManager:
             """
         self.cursor.execute(query)
         return self.cursor.fetchall()
+
+    def get_filtered_monthly_data(self, start_date, end_date):
+        query = """
+                SELECT strftime('%Y-%m', date) AS month,
+                       SUM(amount) AS total_amount,
+                       CASE WHEN type = 'income' THEN 'Gelir' ELSE 'Gider' END AS type
+                FROM (
+                    SELECT amount, date, 'income' as type FROM income
+                    UNION ALL
+                    SELECT amount, date, 'expense' as type FROM expense
+                )
+                WHERE date >= ? AND date <= ?
+                GROUP BY strftime('%Y-%m', date), type
+                ORDER BY month
+            """
+        self.cursor.execute(query, (start_date, end_date))
+        return self.cursor.fetchall()
+
+    def get_filtered_category_data(self, start_date, end_date):
+        query = """
+                SELECT category, SUM(amount), CASE WHEN type = 'income' THEN 'Gelir' ELSE 'Gider' END AS type
+                FROM (
+                    SELECT amount, date, category, 'income' as type FROM income
+                    UNION ALL
+                    SELECT amount, date, category, 'expense' as type FROM expense
+                )
+                WHERE date >= ? AND date <= ?
+                GROUP BY category, type
+                ORDER BY category
+            """
+        self.cursor.execute(query, (start_date, end_date))
+        return self.cursor.fetchall()
+
